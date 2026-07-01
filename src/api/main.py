@@ -47,6 +47,7 @@ async def lifespan(app: FastAPI):
     models["sentiment"] = pipeline(
         "sentiment-analysis",
         model="ProsusAI/finbert"
+        framework="tf"
     )
     print("FinBERT loaded")
 
