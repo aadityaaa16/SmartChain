@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import requests
-from transformers import TFAutoModelForSequenceClassification, AutoTokenizer
 from dotenv import load_dotenv
 import os
 
@@ -34,10 +33,19 @@ async def lifespan(app: FastAPI):
     models["supplier_risk"] = pd.read_csv("data/processed/supplier_risk_scores.csv")
     print("Supplier risk scores loaded")
 
-    print("Loading FinBERT...")
-    models["sentiment_tokenizer"] = AutoTokenizer.from_pretrained("ProsusAI/finbert")
-    models["sentiment_model"] = TFAutoModelForSequenceClassification.from_pretrained("ProsusAI/finbert")
-    print("FinBERT loaded")
+    # FinBERT — optional, loads only if transformers supports TF
+    try:
+        from transformers import AutoTokenizer, AutoModelForSequenceClassification
+        import torch
+        models["sentiment_tokenizer"] = AutoTokenizer.from_pretrained("ProsusAI/finbert")
+        models["sentiment_model"] = AutoModelForSequenceClassification.from_pretrained("ProsusAI/finbert")
+        models["sentiment_available"] = True
+        print("FinBERT loaded")
+    except Exception as e:
+        models["sentiment_available"] = False
+        models["sentiment_tokenizer"] = None
+        models["sentiment_model"] = None
+        print(f"FinBERT not available in this environment: {e}")
 
     print("\nAll models ready!")
     yield
@@ -61,7 +69,16 @@ app.add_middleware(
 
 @app.get("/")
 def home():
-    return {"status": "SmartChain API is running"}
+    return {
+        "status": "SmartChain API is running",
+        "models": {
+            "delivery_risk"   : "active",
+            "anomaly"         : "active",
+            "demand_forecast" : "active",
+            "supplier_risk"   : "active",
+            "sentiment"       : "active" if models.get("sentiment_available") else "unavailable"
+        }
+    }
 
 
 @app.post("/predict-risk")
@@ -83,9 +100,9 @@ def predict_risk(data: dict):
         probability = models["risk"].predict_proba(X)[0].max()
 
         return {
-            "risk_level": int(prediction),
-            "risk_label": "High Risk" if prediction == 1 else "Low Risk",
-            "confidence": round(float(probability), 3)
+            "risk_level" : int(prediction),
+            "risk_label" : "High Risk" if prediction == 1 else "Low Risk",
+            "confidence" : round(float(probability), 3)
         }
     except Exception as e:
         return {"error": str(e)}
@@ -105,9 +122,9 @@ def detect_anomaly(data: dict):
         score = models["anomaly"].decision_function(X)[0]
 
         return {
-            "is_anomaly": bool(prediction == -1),
-            "label": "Anomaly" if prediction == -1 else "Normal",
-            "anomaly_score": round(float(score), 4)
+            "is_anomaly"    : bool(prediction == -1),
+            "label"         : "Anomaly" if prediction == -1 else "Normal",
+            "anomaly_score" : round(float(score), 4)
         }
     except Exception as e:
         return {"error": str(e)}
@@ -120,12 +137,12 @@ def forecast_demand(data: dict):
         if len(last_30) != 30:
             return {"error": "Please provide exactly 30 days of sales data"}
 
-        sales = np.array(last_30)
-        month = data.get("month", 6)
-        day_of_week = data.get("day_of_week", 0)
-        day_of_year = data.get("day_of_year", 180)
-        lag_7 = sales[-7]
-        lag_14 = sales[-14]
+        sales        = np.array(last_30)
+        month        = data.get("month", 6)
+        day_of_week  = data.get("day_of_week", 0)
+        day_of_year  = data.get("day_of_year", 180)
+        lag_7        = sales[-7]
+        lag_14       = sales[-14]
         rolling_mean_7 = sales[-7:].mean()
 
         features = np.array([[
@@ -142,8 +159,8 @@ def forecast_demand(data: dict):
         predicted_sales = models["lstm_scaler"].inverse_transform(dummy)[0, 0]
 
         return {
-            "predicted_demand": round(float(predicted_sales), 2),
-            "unit": "daily sales units"
+            "predicted_demand" : round(float(predicted_sales), 2),
+            "unit"             : "daily sales units"
         }
     except Exception as e:
         return {"error": str(e)}
@@ -176,6 +193,13 @@ def get_single_supplier_risk(supplier_name: str):
 
 @app.get("/sentiment/{company_name}")
 def get_sentiment(company_name: str):
+
+    # Check if FinBERT is available
+    if not models.get("sentiment_available"):
+        return {
+            "error": "Sentiment analysis is running locally only. FinBERT requires PyTorch which is unavailable in this deployment environment."
+        }
+
     try:
         NEWS_API_KEY = os.getenv("NEWS_API_KEY")
         url = f"https://newsapi.org/v2/everything?q={company_name}&language=en&sortBy=publishedAt&pageSize=5&apiKey={NEWS_API_KEY}"
@@ -189,8 +213,9 @@ def get_sentiment(company_name: str):
         if not articles:
             return {"error": f"No news found for {company_name}"}
 
+        import torch
         tokenizer = models["sentiment_tokenizer"]
-        finbert = models["sentiment_model"]
+        finbert   = models["sentiment_model"]
         label_map = {0: "positive", 1: "negative", 2: "neutral"}
 
         results = []
@@ -199,32 +224,26 @@ def get_sentiment(company_name: str):
             if not headline:
                 continue
 
-            inputs = tokenizer(
-                headline,
-                return_tensors="tf",
-                truncation=True,
-                max_length=512
-            )
-            outputs = finbert(inputs)
-            probs = tf.nn.softmax(outputs.logits, axis=-1).numpy()[0]
-            label = label_map[int(np.argmax(probs))]
-            confidence = float(np.max(probs))
+            inputs  = tokenizer(headline, return_tensors="pt", truncation=True, max_length=512)
+            outputs = finbert(**inputs)
+            probs   = torch.nn.functional.softmax(outputs.logits, dim=-1).detach().numpy()[0]
+            label   = label_map[int(np.argmax(probs))]
 
             results.append({
-                "headline": headline,
-                "sentiment": label,
-                "confidence": round(confidence, 3),
-                "published": article.get("publishedAt", "")
+                "headline"   : headline,
+                "sentiment"  : label,
+                "confidence" : round(float(np.max(probs)), 3),
+                "published"  : article.get("publishedAt", "")
             })
 
-        labels = [r["sentiment"] for r in results]
+        labels  = [r["sentiment"] for r in results]
         overall = max(set(labels), key=labels.count)
 
         return {
-            "company": company_name,
+            "company"          : company_name,
             "overall_sentiment": overall,
-            "total_articles": len(results),
-            "results": results
+            "total_articles"   : len(results),
+            "results"          : results
         }
     except Exception as e:
         return {"error": str(e)}
