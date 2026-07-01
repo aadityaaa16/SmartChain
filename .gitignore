@@ -13,10 +13,8 @@ __pycache__/
 # Jupyter checkpoints
 .ipynb_checkpoints/
 
-# Trained model files (too large for GitHub)
-*.h5
-*.pkl
-*.keras
+
+
 
 # Data files
 data/raw/
