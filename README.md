@@ -29,11 +29,11 @@ The project combines modern AI techniques with an interactive web application us
 
 Supply chains generate massive volumes of operational data every day, but organizations often struggle to answer questions like:
 
-- Which suppliers are likely to become risky?
+- Which orders are likely to become risky?
 - Which orders are abnormal and require investigation?
 - How much inventory will be needed next month?
 - Are supplier-related news events affecting procurement risk?
-- What is the best delivery route to minimize transportation costs?
+
 
 Traditional reporting systems provide historical insights but fail to provide predictive intelligence.
 
@@ -57,7 +57,6 @@ The platform provides:
 
 ✅ Financial News Sentiment Analysis
 
-✅ Route Optimization
 
 through an interactive dashboard backed by production-ready REST APIs.
 
@@ -125,15 +124,6 @@ Detects whether news is:
 
 to estimate supplier reputation and business impact.
 
----
-
-### 🚚 Route Optimization
-
-Optimizes transportation routes using Operations Research.
-
-**Technology**
-
-- Google OR-Tools
 
 ---
 
@@ -385,8 +375,6 @@ streamlit run app/main.py
 # 👨‍💻 Author
 
 **Aditya Singh**
-
-LinkedIn: *Add your profile*
 
 GitHub: https://github.com/aadityaaa16
 
