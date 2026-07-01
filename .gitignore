@@ -1,0 +1,30 @@
+# Virtual environment
+venv/
+
+# Environment variables
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Trained model files (too large for GitHub)
+*.h5
+*.pkl
+*.keras
+
+# Data files
+data/raw/
+data/processed/
+
+# VS Code settings
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
