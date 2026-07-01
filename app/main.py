@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 import json
 
 #  API base URL
-API_URL = "http://127.0.0.1:8000"
+API_URL = "https://web-production-e55a2.up.railway.app"
 
 # --- Page config ---
 st.set_page_config(
