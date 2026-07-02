@@ -85,17 +85,16 @@ def home():
 def predict_risk(data: dict):
     try:
         df = pd.DataFrame([data])
-        for col in ["shipping_mode", "market", "order_region", "category"]:
-            if col in df.columns:
-                df[col] = df[col].astype("category").cat.codes
 
+       
         features = [
             "quantity", "sales", "profit",
+            "scheduled_shipping_days",
             "shipping_mode", "market",
-            "order_region", "category",
-            "scheduled_shipping_days"
+            "order_region", "category"
         ]
-        X = df[features].values
+
+        X = df[features]
         prediction = models["risk"].predict(X)[0]
         probability = models["risk"].predict_proba(X)[0].max()
 
